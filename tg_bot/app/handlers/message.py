@@ -11,14 +11,6 @@ async def cmd_start(message: types.Message) -> None:
         "Отправь любой текст, и я отвечу тем же."
     )
 
-
-@router.message(Command("help"))
-async def cmd_help(message: types.Message) -> None:
-    await message.answer(
-        "Я отвечаю на команды /start и /help, а также повторяю любой текст, который ты отправишь."
-    )
-
-
 @router.message()
 async def echo(message: types.Message) -> None:
     if message.text:

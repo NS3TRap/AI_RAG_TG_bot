@@ -5,7 +5,7 @@ from aiogram.types import BotCommand
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 
 from .config import BotConfig
-from .handlers import message_router
+from .handlers import router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ async def health(request: web.Request) -> web.Response:
 def create_app(config: BotConfig) -> web.Application:
     bot = Bot(token=config.token, parse_mode="HTML")
     dp = Dispatcher()
-    dp.include_router(message_router)
+    dp.include_router(router)
 
     app = web.Application()
     app["config"] = config

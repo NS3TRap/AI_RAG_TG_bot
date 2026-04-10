@@ -1,0 +1,54 @@
+import os
+import logging
+from pathlib import Path
+import chromadb
+import uuid
+from dotenv import load_dotenv
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class ChromaService:
+    def __init__(self):
+        load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+        self.client = chromadb.Client(chromadb.config.Settings(
+            persist_directory=os.getenv("CHROMA_DB_DIR"),
+            anonymized_telemetry=False
+        ))
+        self.collection_name = os.getenv("CHROMA_COLLECTION_NAME")
+        self.collection = self._get_or_create_collection()
+        logger.info("Инициализация ChromaService завершена: коллекция '%s'", self.collection_name)
+
+    def _get_or_create_collection(self):
+        try:
+            return self.client.get_collection(name=self.collection_name)
+        except Exception as e:
+            logger.warning("Коллекция не найдена, создаю новую. Ошибка: %s", e)
+            return self.client.create_collection(name=self.collection_name)
+
+    def insert_query(self, text: str, metadata: dict = None):
+        doc_id = str(uuid.uuid4())
+        self.collection.add(
+            documents=[text],
+            metadatas=[metadata],
+            ids=[doc_id]
+        )
+        logger.info("Документ добавлен с ID: %s", doc_id)
+
+    def select_query(self, query_text, top_k=5):
+        results = self.collection.query(
+            query_texts=[query_text],
+            n_results=top_k
+        )
+        logger.info("Запрос выполнен: '%s', найдено %d результатов", query_text, len(results['documents'][0]) if results['documents'] else 0)
+        return results['documents'][0] if results['documents'] else []
+    
+    def delete_query(self, doc_id):
+        self.collection.delete(ids=[doc_id])
+        logger.info("Документ с ID %s удалён", doc_id)
+
+    def list_query(self):
+        all_docs = self.collection.get()
+        logger.info("Всего документов в коллекции '%s': %d", self.collection_name, len(all_docs['documents']))
+        return list(zip(all_docs["ids"], all_docs["documents"]))
+    
