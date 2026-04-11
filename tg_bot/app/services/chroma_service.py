@@ -1,23 +1,28 @@
 import os
 import logging
 from pathlib import Path
-import chromadb
+from chromadb import PersistentClient
 import uuid
-from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class ChromaService:
     def __init__(self):
-        load_dotenv(Path(__file__).resolve().parents[2] / ".env")
-        self.client = chromadb.Client(chromadb.config.Settings(
-            persist_directory=os.getenv("CHROMA_DB_DIR"),
-            anonymized_telemetry=False
-        ))
+        db_path = os.getenv("CHROMA_DB_DIR")
+
+        if not db_path:
+            raise ValueError("CHROMA_DB_DIR не задан")
+
+        db_path = os.path.abspath(db_path)
+        Path(db_path).mkdir(parents=True, exist_ok=True)
+
+        self.client = PersistentClient(path=db_path)
         self.collection_name = os.getenv("CHROMA_COLLECTION_NAME")
         self.collection = self._get_or_create_collection()
-        logger.info("Инициализация ChromaService завершена: коллекция '%s'", self.collection_name)
+
+        logger.info("Инициализация ChromaService завершена: %s", self.collection_name)
+        logger.info("CHROMA_DB_DIR=%s", db_path)
 
     def _get_or_create_collection(self):
         try:

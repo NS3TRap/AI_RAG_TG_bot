@@ -8,7 +8,7 @@ from tg_bot.app.handlers.states import UserStates
 router = Router()
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)    
 
 @router.message(Command("delete"))
 async def cmd_delete(message: types.Message, state: FSMContext) -> None:
