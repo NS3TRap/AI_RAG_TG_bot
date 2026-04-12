@@ -38,3 +38,5 @@ class BotConfig:
     @property
     def webhook_full_url(self) -> str:
         return f"{self.webhook_url.rstrip('/')}" + self.webhook_path
+
+bot_config = BotConfig.from_env()

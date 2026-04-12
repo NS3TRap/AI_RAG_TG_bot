@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 
-from .config import BotConfig
+from .config import bot_config, BotConfig
 from .handlers import router
 
 logging.basicConfig(level=logging.INFO)

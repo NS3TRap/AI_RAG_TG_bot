@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from typing import Any, Dict
+from llm_service.app.services.llm import LLMService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -41,5 +42,8 @@ class LLMQueue:
             "context": context,
             "future": future
         })
-        logger.info(f"Task added to queue: {query}")
+        logger.info(f"Task added to queue: {query}, context: {context}")
         return await future
+    
+llm_service = LLMService()
+llm_queue = LLMQueue(llm_service)

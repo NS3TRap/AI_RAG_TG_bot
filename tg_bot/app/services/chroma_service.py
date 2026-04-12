@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 from chromadb import PersistentClient
 import uuid
+from sentence_transformers import SentenceTransformer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -10,7 +11,6 @@ logger = logging.getLogger(__name__)
 class ChromaService:
     def __init__(self):
         db_path = os.getenv("CHROMA_DB_DIR")
-
         if not db_path:
             raise ValueError("CHROMA_DB_DIR не задан")
 
@@ -20,6 +20,9 @@ class ChromaService:
         self.client = PersistentClient(path=db_path)
         self.collection_name = os.getenv("CHROMA_COLLECTION_NAME")
         self.collection = self._get_or_create_collection()
+        self.embedding_model = SentenceTransformer(
+            "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+        )
 
         logger.info("Инициализация ChromaService завершена: %s", self.collection_name)
         logger.info("CHROMA_DB_DIR=%s", db_path)
@@ -33,16 +36,20 @@ class ChromaService:
 
     def insert_query(self, text: str, metadata: dict = None):
         doc_id = str(uuid.uuid4())
+        embedding = self.embedding_model.encode(text).tolist()
         self.collection.add(
             documents=[text],
-            metadatas=[metadata],
+            metadatas=[metadata] if metadata else [{}],
+            embeddings=[embedding],
             ids=[doc_id]
         )
+
         logger.info("Документ добавлен с ID: %s", doc_id)
 
-    def select_query(self, query_text, top_k=5):
+    def select_query(self, query_text, top_k=1):
+        embedding = self.embedding_model.encode(query_text).tolist()
         results = self.collection.query(
-            query_texts=[query_text],
+            query_embeddings=[embedding],
             n_results=top_k
         )
         logger.info("Запрос выполнен: '%s', найдено %d результатов", query_text, len(results['documents'][0]) if results['documents'] else 0)

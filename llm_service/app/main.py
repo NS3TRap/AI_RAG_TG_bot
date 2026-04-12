@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from llm_service.app.routes import router
 from llm_service.app.config import LLMConfig
+from llm_service.app.services.queue import llm_queue
 
 app = FastAPI(
     title="LLM Service",
@@ -10,11 +11,13 @@ app = FastAPI(
 
 app.include_router(router)
 
-
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
 
+@router.on_event("startup")
+async def startup():
+    await llm_queue.start()
 
 if __name__ == "__main__":
     import uvicorn

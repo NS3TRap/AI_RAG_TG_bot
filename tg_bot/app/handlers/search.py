@@ -23,16 +23,14 @@ async def cmd_search(message: types.Message, state: FSMContext) -> None:
 async def process_search(message: types.Message, state: FSMContext) -> None:
     query = message.text
     chroma_service = ChromaService()
-    results = chroma_service.search_query(
-        query,
-        metadata={"user_id": message.from_user.id}
+    results = chroma_service.select_query(
+        query
     )
     await state.clear()
 
     if results:
         response = "Найдены следующие результаты:\n\n"
-        for idx, result in enumerate(results, start=1):
-            response += f"{idx}. {result['text']}\n"
+        response += results[0]
     else:
         response = "К сожалению, ничего не найдено по вашему запросу."
 
