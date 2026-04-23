@@ -24,6 +24,7 @@
 
 ### Команды бота
 
+
 | Команда | Описание                                             |
 | -------------- | ------------------------------------------------------------ |
 | `/start`       | Запустить бота                                  |
@@ -79,6 +80,95 @@
 5. LLM обрабатывает запрос
 6. Ответ возвращается в Telegram Bot
 7. Бот отправляет результат пользователю
+
+### Примеры кода
+
+Листин 1. Генерация ответа
+
+```python
+from fastapi import APIRouter
+from llm_service.app.models.schemas import GenerateRequest, GenerateResponse
+from llm_service.app.services.queue import llm_queue
+
+router = APIRouter()
+
+@router.post("/generate", response_model=GenerateResponse)
+async def generate(request: GenerateRequest):
+    answer = await llm_queue.add_task(
+        query=request.query,
+        context=request.context
+    )
+
+    return GenerateResponse(answer=answer)
+```
+
+Листинг 2. Управление состояними.
+
+```python
+@router.message(Command("userag"))
+async def cmd_use_rag(message: types.Message, state: FSMContext) -> None:
+    await state.set_state(UserStates.useRag)
+    await message.answer("Теперь я буду использовать RAG для ответов. Отправь текст.")
+
+@router.message(Command("norag"))
+async def cmd_no_rag(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer("RAG отключён. Теперь обычный режим.")
+```
+
+Листинг 3. Обработка запросов с телеграмма.
+
+```python
+from aiogram import Router, types
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+import logging
+
+from tg_bot.app.services.chroma_service import ChromaService
+from tg_bot.app.services.llm_client import llm_client
+from tg_bot.app.handlers.states import UserStates
+
+router = Router()
+chroma = ChromaService()
+
+@router.message(UserStates.useRag)
+async def handle_rag_message(message: types.Message, state: FSMContext) -> None:
+    query = message.text
+
+    try:
+        context = chroma.select_query(query)
+        if not context:
+            await message.answer("Контекст не найден")
+            return
+
+        answer = await llm_client.generate(query, context)
+        await message.answer(answer, parse_mode=None)
+  
+    except Exception as e:
+        logging.exception("RAG error")
+        await message.answer("Ошибка при обработке RAG")
+
+@router.message(Command("start"))
+async def cmd_start(message: types.Message) -> None:
+    await message.answer(
+        "Привет! Я простой Telegram бот на aiogram через webhook.\n"
+        "Отправь любой текст, и я отвечу тем же."
+    )
+
+@router.message()
+async def echo(message: types.Message) -> None:
+    if not message.text:
+        return
+
+    try:
+        answer = await llm_client.generate(message.text)
+        await message.answer(answer, parse_mode=None)
+
+    except Exception as e:
+        logging.exception("LLM error")
+        await message.answer("Ошибка при обращении к LLM")
+
+```
 
 ## Запуск проекта
 
@@ -147,8 +237,19 @@ https://abcd-1234.ngrok-free.app
 
 ## Тестирование ответов модели с RAG / без RAG
 
-Для тестирования качества генерации использовалась модель:
-LiquidAI/LFM2.5-1.2B-Instruct
+Для тестирования качества генерации использовалась модель:<br>
+LiquidAI/LFM2.5-1.2B-Instruct<br>
+
+* Кол-во параметров: 1.17B;
+* Кол-во слоёв: 16;
+* Длина контекста: 32,768 токенов;
+* Размер словаря: 65,536;
+* Языки: английский, арабский, китайский, французский, немецкий, японский, корейский, испанский;
+* Параметры генерации:
+  * temperature: 0.2;
+  * top_p: 0.85;
+  * top_k: 50 (default);
+  * repetition_penalty: 1.2.
 
 Сравнивались ответы модели:
 
@@ -161,14 +262,16 @@ LiquidAI/LFM2.5-1.2B-Instruct
 
 > * Погода, состояние атмосферы в рассматриваемом месте в определённый момент или за ограниченный промежуток времени (сутки, месяц, год).
 > * Металлоло́м — общее, собирательное название различного металлического мусора, утилизируемого или не утилизируемого во вторичном металлургическом цикле. Чаще всего к металлолому относят специально концентрируемый в отведенных местах металлический мусор для последующей переработки или утилизации.
-> * Сердце - есть жижа
+> * STM32F103C8T6 — это популярный 32-битный микроконтроллер от STMicroelectronics на базе ядра ARM Cortex-M3 (72 МГц), известный как «сердце» отладочной платы Blue Pill. Он часто используется в электронике благодаря высокой производительности, наличию USB, 64 КБ Flash-памяти и низкой цене.
 
 ### Сравнение ответов
 
 <table><tr><td>Запрос пользователя</td><td>Ответ без RAG</td><td>Ответ с RAG</td></tr>
 <tr><td>Расскажи про металлолом</td><td>Металло — это общее название для групп аlynn-ме탈,включая</br> знанные элементы неродон (Zn), медаль (Ag), циркديوم (Cu) и т.д.</br> Основные особенности</br>**Использование** Используется в промышленности,</br> электроника, транспорте и других областях.</br>**Признаки** Можно найти его на рынках, в производстве</br> устройств и машинах.</br>**Сообщения** Возможны проблемы с поведением при</br> высоких температурах или из-за загрязнения.</br>
 Если хотите, могу подробнее рассказать о какой-то</br> конкретном металле!</td>
-<td>Металлоло́м — это совокупность разных материалов из</br>промышленности, которые после использования становятся</br> мусором. Это включает металлические детали, старые машины,</br> конструкции и другие предметы, которые нуждаются в</br> переработке или утилизации.</td></tr></table>
+<td>Металлоло́м — это совокупность разных материалов из</br>промышленности, которые после использования становятся</br> мусором. Это включает металлические детали, старые машины,</br> конструкции и другие предметы, которые нуждаются в</br> переработке или утилизации.</td></tr>
+<tr><td>STM32F103C8T6</td><td>STM32F103C8T6 — это микроконтроллер ARM Cortex-M3, 16 MHz, 4KB RAM,<br> 2MB Flash.</td>
+<td>STM32F103C8T6 — это 32-битный mikrocontroller с ARM Cortex-M3,<br> 72 MHz, 64 KB Flash, ideal для разнообразных приложений.</td></tr></table>
 
 ### Вывод
 
@@ -178,5 +281,4 @@ LiquidAI/LFM2.5-1.2B-Instruct
   * контекстно обоснованными
   * ближе к данным, хранящимся в базе
 
-Кроме того, использование RAG позволяет ​**контролировать знания модели**​, опираясь на собственную базу данных, а не только на предобученные параметры модели.
-
+Кроме того, использование RAG позволяет **контролировать знания модели**, опираясь на собственную базу данных, а не только на предобученные параметры модели.
